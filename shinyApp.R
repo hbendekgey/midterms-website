@@ -12,7 +12,7 @@ library(ggplot2)
 s_only_text <- "Half of the prediction comes from Rothenberg's rating of races as e.g. Safe-D or Tossup or Lean-R. These have historically been very accurate, but did not do well in 2016. If you do not trust pundits, check this box."
 desc_text <- "The Structure-X model predicts the house elections using Presidential approval ratings, real disposible income growth, and who holds the Presidency. If the economy is doing well, or if the President is popular, we expect the incumbent party to do better. These predictions are combined with expert opinion seat ratings (aka which seats are leaning or safe in each direction). What if you don't trust the experts? What if you think Presidential disapproval is a better predictor than Presidential approval? How would the election look different if Trump was more popular? Play around!"
 shift_pred_text <- "For the past 6 elections (as long as Rothenberg has been rating races) this model has predicted outcomes more favorable to the Presidential party every election, on average by about 6 seats. With so few data points we don't have statistical significance, (p=0.06) and it's dangerous to overfit the data, so you should only check this if you think there's a systematic reason this model might overestimate incumbent performance."
-info_text <- "For more information on these models, check out https://github.com/hbendekgey/house_forecast_2018"
+info_text <- "For more information on these models, check out <a href=\"https://github.com/hbendekgey/house_forecast_2018\">my Github</a>"
 
 header <- dashboardHeader(
   title = "2018 House",
@@ -82,7 +82,7 @@ structurex <- filter(structure, year >= 2006)
 server <- function(input, output, session) {
   observeEvent(input$info, {
     shinyalert("2018 House Forecasting Models", 
-               info_text, type = "info")
+               info_text, html = TRUE, type = "info")
   })
   ###Structure-X
   
