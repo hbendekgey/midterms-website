@@ -13,6 +13,7 @@ s_only_text <- "Half of the prediction comes from Rothenberg's rating of races a
 desc_text <- "The Structure-X model predicts the house elections using Presidential approval ratings, real disposible income growth, and who holds the Presidency. If the economy is doing well, or if the President is popular, we expect the incumbent party to do better. These predictions are combined with expert opinion seat ratings (aka which seats are leaning or safe in each direction). What if you don't trust the experts? What if you think Presidential disapproval is a better predictor than Presidential approval? How would the election look different if Trump was more popular? Play around!"
 shift_pred_text <- "For the past 6 elections (as long as Rothenberg has been rating races) this model has predicted outcomes more favorable to the Presidential party every election, on average by about 6 seats. With so few data points we don't have statistical significance, (p=0.06) and it's dangerous to overfit the data, so you should only check this if you think there's a systematic reason this model might overestimate incumbent performance."
 info_text <- "For more information on these models, check out <a href=\"https://github.com/hbendekgey/house_forecast_2018\">my Github</a>"
+npdi_desc_text <- "The National Poll District Info model predicts the national house popular vote based on generic ballot polls and who currently controls the presidency. It then predicts how each seat will behave based on how they behaved in 2016, shifted to reflect the change in national environtment. Finally, it runs thousands of simulations: first picking a value for the national vote, then picking an outcome for each district based on that. Play around with some of the parameters and see how it affects the model!"
 
 header <- dashboardHeader(
   title = "2018 House",
@@ -28,7 +29,7 @@ sidebar <- dashboardSidebar(
 
 body <- dashboardBody(useShinyalert(), fluidRow(
   tabItems(
-    # Structure-X
+    # Structure-X ----
     tabItem(tabName="sx",
     column(8, align="center",
       box(width = NULL, align="left", status="primary", desc_text),
@@ -41,7 +42,7 @@ body <- dashboardBody(useShinyalert(), fluidRow(
     ),
     column(4,
       box(width = NULL, status = "warning",
-        tags$h4(tags$b("Fix up the model your way")),
+        tags$h4(tags$b("1. Fix up the model your way")),
         selectInput(inputId = "pres",
                     label = "Predict results based on Presidential...",
                     choices = c("Approval", "Disapproval", "Net Approval", "Approval Share")),
@@ -54,6 +55,8 @@ body <- dashboardBody(useShinyalert(), fluidRow(
         )
       ),
       box(width = NULL, status = "warning",
+        tags$h4(tags$b("2. What if conditions were different?")),
+          
         sliderInput(inputId = "rdig",
                     label = "December '17-June '18 Real Disposible Income Growth",
                     value = 1.47, min = -1, max = 5, step=0.01),
@@ -67,13 +70,50 @@ body <- dashboardBody(useShinyalert(), fluidRow(
       )
     )
   ),
-  # Bafumi, Erikson Wlezien
-  tabItem(tabName="bafumi", fluidPage()))
+  # Bafumi, Erikson Wlezien ----
+  tabItem(tabName="bafumi",
+          column(8, align="center",
+                 box(width = NULL, align="left", status="primary", npdi_desc_text),
+                 box(width = NULL, plotOutput("npdi-plot")),
+                 box(width = NULL, 
+                     h4(textOutput("npdi-interval")),
+                     h4(textOutput("npdi-est")),
+                     h4(textOutput("npdi-dem_win_pct"))
+                 )
+          ),
+          column(4,
+             box(width = NULL, status = "warning",
+                 tags$h4(tags$b("Fix up the model your way")),
+                 sliderInput(inputId = "trump",
+                             label = "How much is the GOP the Party of Trump?",
+                             value = 0.42, min = 0, max = 1, step=0.01),
+                 actionLink("trump_info", "What does this mean?"),
+                 sliderInput(inputId = "open-adv",
+                             label = "Expected Democratic overperformance in open seats",
+                             value = 0, min = -1, max = 3, step=0.1),
+                 actionLink("open-adv-info", "Why would I want this?"),
+                 sliderInput(inputId = "open-stdev",
+                             label = "Open Seat Uncertainty",
+                             value = 6.1, min = 2, max = 10, step=0.1),
+                 actionLink("open-stdev-info", "Tell me more"),
+                 sliderInput(inputId = "inc-stdev",
+                             label = "Incumbent Seat Uncertainty",
+                             value = 4.5, min = 2, max = 10, step=0.1),
+                 actionLink("inc-stdev-info", "Tell me more"),
+                 sliderInput(inputId = "nat-stdev",
+                             label = "National Vote Uncertainty",
+                             value = 1.8, min = 1, max = 3, step=0.1),
+                 actionLink("nat-stdev-info", "Please, tell me more"),
+                 tags$br(),
+                 actionButton("npdi-reset", "Reset")
+             )
+          )
+        ))
 ))
 
 ui <- dashboardPage(header, sidebar, body)
 
-
+# server ----
 structure <- read_csv("~/house_forecast_2018/data/structurex.csv") %>%
   mutate(pres_net = pres_app - pres_dis, pres_share = pres_app/(pres_app + pres_dis) * 100) %>%
   filter(year >= 1950)
