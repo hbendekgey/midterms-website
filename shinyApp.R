@@ -74,7 +74,12 @@ body <- dashboardBody(useShinyalert(), fluidRow(
   tabItem(tabName="bafumi",
           column(8, align="center",
                  box(width = NULL, align="left", status="primary", npdi_desc_text),
-                 box(width = NULL, plotOutput("npdi_plot")),
+                 box(width = NULL, 
+                     tabsetPanel(
+                       tabPanel("Histogram of House Seats", plotOutput("npdi_plot")),
+                       tabPanel("District-Level Data Table", dataTableOutput("district_info"))
+                     )
+                 ),
                  box(width = NULL, 
                      h4(textOutput("npdi_interval")),
                      h4(textOutput("npdi_est")),
@@ -320,7 +325,23 @@ server <- function(input, output, session) {
     paste("Estimated number of Democratic seats:", 
           median(dseats()))
   })
-  
+  output$district_info <- renderDataTable({
+    sim_result <- sim()
+    dem_win_pct <- round(colSums(sim_result > 0)/nrow(sim_result) * 100)
+    dem_share <- signif(colMeans(sim_result) + 50, digits=3)
+    dem_share[dem_share > 100] = 100
+    conceded <- cd2018data %>% 
+      filter(concede == 1 | concede == -1) %>% 
+      mutate(dem_share = NA, dem_win_pct = ifelse(concede==1,100,0)) %>% 
+      select(district, dem_share, dem_win_pct)
+    district <- c(inc18$district, open18$district, conceded$district)
+    dem_share <- c(dem_share, conceded$dem_share)
+    dem_win_pct <- c(dem_win_pct, conceded$dem_win_pct)
+    forecast <- data.frame(district, dem_share, dem_win_pct)
+    forecast <- forecast[order(district),]
+    rownames(forecast) <- c()
+    forecast
+  }, options = list(dom = 'ftpr'))
 }
 
 shinyApp(ui = ui, server = server)
