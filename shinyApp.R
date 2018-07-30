@@ -13,7 +13,7 @@ s_only_text <- "Half of the prediction comes from Rothenberg's rating of races a
 desc_text <- "The Structure-X model predicts the house elections using Presidential approval ratings, real disposible income growth, and who holds the Presidency. If the economy is doing well, or if the President is popular, we expect the incumbent party to do better. These predictions are combined with expert opinion seat ratings (aka which seats are leaning or safe in each direction). What if you don't trust the experts? What if you think Presidential disapproval is a better predictor than Presidential approval? How would the election look different if Trump was more popular? Play around!"
 shift_pred_text <- "For the past 6 elections (as long as Rothenberg has been rating races) this model has predicted outcomes more favorable to the Presidential party every election, on average by about 6 seats. With so few data points we don't have statistical significance, (p=0.06) and it's dangerous to overfit the data, so you should only check this if you think there's a systematic reason this model might overestimate incumbent performance."
 info_text <- "For more information on these models, check out <a href=\"https://github.com/hbendekgey/house_forecast_2018\">my Github</a>"
-npdi_desc_text <- "The National Poll District Info model predicts the national house popular vote based on generic ballot polls and who currently controls the presidency. It then predicts how each seat will behave based on how they behaved in 2016, shifted to reflect the change in national environtment. Finally, it runs thousands of simulations: first picking a value for the national vote, then picking an outcome for each district based on that. Play around with some of the parameters and see how it affects the model!"
+npdi_desc_text <- "The National Poll District Info model predicts the national house popular vote based on generic ballot polls and who currently controls the presidency. From these structural conditions we expect Democrats to win 53.2% of the votes for representatives across the country, an environment very friendly to Democrats. The model then predicts how each seat will behave based on how they behaved in 2016, shifted to reflect the change in national environtment. Finally, it runs thousands of simulations: first picking a value for the national vote, then picking an outcome for each district based on that. Play around with some of the parameters and see how it affects the model!"
 
 header <- dashboardHeader(
   title = "2018 House",
@@ -74,11 +74,11 @@ body <- dashboardBody(useShinyalert(), fluidRow(
   tabItem(tabName="bafumi",
           column(8, align="center",
                  box(width = NULL, align="left", status="primary", npdi_desc_text),
-                 box(width = NULL, plotOutput("npdi-plot")),
+                 box(width = NULL, plotOutput("npdi_plot")),
                  box(width = NULL, 
-                     h4(textOutput("npdi-interval")),
-                     h4(textOutput("npdi-est")),
-                     h4(textOutput("npdi-dem_win_pct"))
+                     h4(textOutput("npdi_interval")),
+                     h4(textOutput("npdi_est")),
+                     h4(textOutput("npdi_dem_win_pct"))
                  )
           ),
           column(4,
@@ -88,24 +88,24 @@ body <- dashboardBody(useShinyalert(), fluidRow(
                              label = "How much is the GOP the Party of Trump?",
                              value = 0.42, min = 0, max = 1, step=0.01),
                  actionLink("trump_info", "What does this mean?"),
-                 sliderInput(inputId = "open-adv",
+                 sliderInput(inputId = "open_adv",
                              label = "Expected Democratic overperformance in open seats",
                              value = 0, min = -1, max = 3, step=0.1),
                  actionLink("open-adv-info", "Why would I want this?"),
-                 sliderInput(inputId = "open-stdev",
+                 sliderInput(inputId = "open_stdev",
                              label = "Open Seat Uncertainty",
                              value = 6.1, min = 2, max = 10, step=0.1),
                  actionLink("open-stdev-info", "Tell me more"),
-                 sliderInput(inputId = "inc-stdev",
+                 sliderInput(inputId = "inc_stdev",
                              label = "Incumbent Seat Uncertainty",
                              value = 4.5, min = 2, max = 10, step=0.1),
                  actionLink("inc-stdev-info", "Tell me more"),
-                 sliderInput(inputId = "nat-stdev",
+                 sliderInput(inputId = "nat_stdev",
                              label = "National Vote Uncertainty",
                              value = 1.8, min = 1, max = 3, step=0.1),
                  actionLink("nat-stdev-info", "Please, tell me more"),
                  tags$br(),
-                 actionButton("npdi-reset", "Reset")
+                 actionButton("npdi_reset", "Reset")
              )
           )
         ))
@@ -113,12 +113,38 @@ body <- dashboardBody(useShinyalert(), fluidRow(
 
 ui <- dashboardPage(header, sidebar, body)
 
-# server ----
+# data ----
 structure <- read_csv("~/house_forecast_2018/data/structurex.csv") %>%
   mutate(pres_net = pres_app - pres_dis, pres_share = pres_app/(pres_app + pres_dis) * 100) %>%
   filter(year >= 1950)
 structurex <- filter(structure, year >= 2006)
 
+seatchange <- read_csv("~/house_forecast_2018/data/seatchange.csv") %>%
+  filter(midterm != 0)
+
+genpolls <- read_csv("~/house_forecast_2018/data/GenericPolls.csv") 
+
+model <- genpolls %>%
+  filter(mtil >= 121, mtil <= 180) %>%
+  filter(!is.na(dem), !is.na(rep)) %>%
+  mutate(dem_share_poll = dempct - 50, is_rv = ifelse(is.na(type),TRUE, type == "RV" | type=="A")) %>%
+  group_by(year) %>%
+  summarise(genpoll = mean(dem_share_poll),pct_rv=mean(is_rv)) %>%
+  merge(seatchange, by="year") %>%
+  mutate(vote = 100 * nat_vote_dem/(nat_vote_dem + nat_vote_rep) - 50) %>%
+  mutate(president_party = -1 * midterm, adj_genpoll = genpoll - 1.277 * pct_rv) %>%
+  select(year, genpoll, vote, president_party, pct_rv, adj_genpoll)
+
+cd2018data <- read_csv("~/house_forecast_2018/data/cd2018data.csv")
+Dconcede <- cd2018data %>% filter(concede == 1) %>% nrow() # 41 races handed to Democrats
+Rconcede <- cd2018data %>% filter(concede == -1) %>% nrow() # 27 races handed to Republicans
+open18 <- cd2018data %>%
+  filter(concede == 0, incumbent18 == 0 | grepl("PA",district))
+inc18 <- cd2018data %>%
+  filter(concede == 0, incumbent18 != 0 & !grepl("PA",district)) %>%
+  mutate(frosh = incumbent18 * (incumbent16 != incumbent18))
+
+# server ----
 server <- function(input, output, session) {
   observeEvent(input$info, {
     shinyalert("2018 House Forecasting Models", 
@@ -225,11 +251,76 @@ server <- function(input, output, session) {
     forecast_df <- data.frame(dseats=rep(dist_df$dseats, dist_df$prob))
     ggplot(aes(x=dseats, fill=(dseats > 217)), data=forecast_df) + 
       geom_histogram(binwidth=1, aes(y=..count../sum(..count..))) + xlab("Democratic seats in house") + 
+      ylab("Probability") + scale_x_continuous(limits=c(lower.bound,upper.bound)) + 
+      scale_fill_discrete(name=element_blank(),
+                          breaks=c("FALSE", "TRUE"),
+                          labels=c("Republican House", "Democratic House"))
+  })
+  
+  # NPDI 
+  params18 <- data.frame(adj_genpoll=3.177, president_party=-1, genpoll=genpoll2018+1.277)
+  dem_share16 <- 49.441-50
+  
+  observeEvent(input$npdi_reset, {
+    updateSliderInput(session, "trump", value=0.42)
+    updateSliderInput(session, "open_adv", value=0)
+    updateSliderInput(session, "open_stdev", value=6.1)
+    updateSliderInput(session, "inc_stdev", value=4.5)
+    updateSliderInput(session, "nat_stdev", value=1.8)
+  })
+  
+  sim <- reactive({
+    set.seed(4747)
+    fit <-  lm(vote ~ 0 + adj_genpoll + president_party, data=model)
+    interval <- predict.lm(fit, params18, se.fit = TRUE, interval="prediction")
+    t.cuttoff <- qt(0.975, df=interval$df)
+    sdswing <- (interval$fit[1]-interval$fit[2])/t.cuttoff
+    expswing <- interval$fit[1] - dem_share16
+    openint <- mean(open18$dem16share) - mean(open18$pres16share)
+    incint <- mean(inc18$dem16share) - mean(0.58 * inc18$dem16share + 0.42 * inc18$pres16share + 2.4 * inc18$frosh) 
+    open18 <- open18 %>% 
+      mutate(exp18 = openint + pres16share) 
+    inc18 <- inc18 %>%
+      mutate(exp18 = incint + 0.58 * dem16share + 0.42 * pres16share + 2.03 * frosh)
+    niter <- 10000
+    open <- matrix(NA,nrow=niter,ncol=nrow(open18))
+    inc <- matrix(NA,nrow=niter,ncol=nrow(inc18))
+    set.seed(4747)
+    natswing <- rt(niter, df=interval$df) * sdswing + expswing
+    for (i in 1:niter) {
+      open[i,] <- rnorm(nrow(open18), mean = open18$exp18, sd=6.1) + natswing[i]
+      inc[i,] <- rnorm(nrow(inc18), mean = inc18$exp18, sd=4.0) + natswing[i]
+    }
+    cbind(open, inc)
+  })
+  dseats <- reactive({
+    rowSums(sim() > 0) + Dconcede
+  })
+  
+  output$npdi_plot <- renderPlot({
+    forecast_df <- data.frame(dseats=dseats())
+    ggplot(aes(x=dseats, fill=(dseats > 217)), data=forecast_df) + 
+      geom_histogram(binwidth=1, aes(y=..count../sum(..count..))) + xlab("Democratic seats in house") + 
       ylab("Probability") + scale_x_continuous(limits=c(150,285)) + 
       scale_fill_discrete(name=element_blank(),
                           breaks=c("FALSE", "TRUE"),
                           labels=c("Republican House", "Democratic House"))
   })
+  output$npdi_interval <- renderText({
+    bounds <- quantile(dseats(), c(0.05,0.95))
+    paste("90% confidence interval for number of Democratic seats:", 
+          bounds[1], " to ", bounds[2])
+  })
+  output$npdi_dem_win_pct <- renderText({
+    paste("Probability of Democrats taking house:", 
+          round(mean(dseats() > 217) * 100),
+          "%")
+  })
+  output$npdi_est <- renderText({
+    paste("Estimated number of Democratic seats:", 
+          median(dseats()))
+  })
+  
 }
 
 shinyApp(ui = ui, server = server)
