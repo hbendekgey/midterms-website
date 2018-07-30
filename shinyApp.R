@@ -77,7 +77,8 @@ body <- dashboardBody(useShinyalert(), fluidRow(
                  box(width = NULL, 
                      tabsetPanel(
                        tabPanel("Histogram of House Seats", plotOutput("npdi_plot")),
-                       tabPanel("District-Level Data Table", dataTableOutput("district_info"))
+                       tabPanel("District-Level Data Table", dataTableOutput("district_info")),
+                       tabPanel("Tossup Districts", dataTableOutput("tossups"))
                      )
                  ),
                  box(width = NULL, 
@@ -126,10 +127,7 @@ structurex <- filter(structure, year >= 2006)
 
 seatchange <- read_csv("~/house_forecast_2018/data/seatchange.csv") %>%
   filter(midterm != 0)
-
-genpolls <- read_csv("~/house_forecast_2018/data/GenericPolls.csv") 
-
-model <- genpolls %>%
+model <- read_csv("~/house_forecast_2018/data/GenericPolls.csv")  %>%
   filter(mtil >= 121, mtil <= 180) %>%
   filter(!is.na(dem), !is.na(rep)) %>%
   mutate(dem_share_poll = dempct - 50, is_rv = ifelse(is.na(type),TRUE, type == "RV" | type=="A")) %>%
@@ -141,13 +139,12 @@ model <- genpolls %>%
   select(year, genpoll, vote, president_party, pct_rv, adj_genpoll)
 
 cd2018data <- read_csv("~/house_forecast_2018/data/cd2018data.csv")
-Dconcede <- cd2018data %>% filter(concede == 1) %>% nrow() # 41 races handed to Democrats
-Rconcede <- cd2018data %>% filter(concede == -1) %>% nrow() # 27 races handed to Republicans
-open18 <- cd2018data %>%
-  filter(concede == 0, incumbent18 == 0 | grepl("PA",district))
-inc18 <- cd2018data %>%
-  filter(concede == 0, incumbent18 != 0 & !grepl("PA",district)) %>%
+Dconcede <- nrow(filter(cd2018data, concede == 1))
+Rconcede <- nrow(filter(cd2018data, concede == -1))
+open18 <- filter(cd2018data, concede == 0, incumbent18 == 0 | grepl("PA",district))
+inc18 <- filter(cd2018data, concede == 0, incumbent18 != 0 & !grepl("PA",district)) %>%
   mutate(frosh = incumbent18 * (incumbent16 != incumbent18))
+niter <- 20000
 
 # server ----
 server <- function(input, output, session) {
@@ -263,7 +260,7 @@ server <- function(input, output, session) {
   })
   
   # NPDI 
-  params18 <- data.frame(adj_genpoll=3.177, president_party=-1, genpoll=genpoll2018+1.277)
+  params18 <- data.frame(adj_genpoll=3.177, president_party=-1)
   dem_share16 <- 49.441-50
   
   observeEvent(input$npdi_reset, {
@@ -277,29 +274,37 @@ server <- function(input, output, session) {
   sim <- reactive({
     set.seed(4747)
     fit <-  lm(vote ~ 0 + adj_genpoll + president_party, data=model)
-    interval <- predict.lm(fit, params18, se.fit = TRUE, interval="prediction")
-    t.cuttoff <- qt(0.975, df=interval$df)
-    sdswing <- (interval$fit[1]-interval$fit[2])/t.cuttoff
-    expswing <- interval$fit[1] - dem_share16
-    openint <- mean(open18$dem16share) - mean(open18$pres16share)
-    incint <- mean(inc18$dem16share) - mean(0.58 * inc18$dem16share + 0.42 * inc18$pres16share + 2.4 * inc18$frosh) 
-    open18 <- open18 %>% 
-      mutate(exp18 = openint + pres16share) 
-    inc18 <- inc18 %>%
-      mutate(exp18 = incint + 0.58 * dem16share + 0.42 * pres16share + 2.03 * frosh)
-    niter <- 10000
+    interval <- predict.lm(fit, params18, se.fit = TRUE)
+    expswing <- interval$fit - dem_share16
+    openint <- mean(open18$dem16share) - mean(open18$pres16share) + input$open_adv
+    incint <- mean(inc18$dem16share) - mean((1 - input$trump) * inc18$dem16share + input$trump * inc18$pres16share + 2.4 * inc18$frosh) - input$open_adv * nrow(open18)/nrow(inc18)
+    open18 <- mutate(open18, exp18 = openint + pres16share) 
+    inc18 <- mutate(inc18, exp18 = incint + (1 - input$trump) * dem16share + input$trump * pres16share + 2.4 * frosh)
     open <- matrix(NA,nrow=niter,ncol=nrow(open18))
     inc <- matrix(NA,nrow=niter,ncol=nrow(inc18))
-    set.seed(4747)
-    natswing <- rt(niter, df=interval$df) * sdswing + expswing
+    natswing <- rt(niter, df=interval$df) * input$nat_stdev + expswing
     for (i in 1:niter) {
-      open[i,] <- rnorm(nrow(open18), mean = open18$exp18, sd=6.1) + natswing[i]
-      inc[i,] <- rnorm(nrow(inc18), mean = inc18$exp18, sd=4.0) + natswing[i]
+      open[i,] <- rnorm(nrow(open18), mean = open18$exp18, sd=input$open_stdev) + natswing[i]
+      inc[i,] <- rnorm(nrow(inc18), mean = inc18$exp18, sd=input$inc_stdev) + natswing[i]
     }
     cbind(open, inc)
   })
   dseats <- reactive({
     rowSums(sim() > 0) + Dconcede
+  })
+  npdi_data <- reactive({
+    sim_result <- sim()
+    dem_win_pct <- round(colSums(sim_result > 0)/nrow(sim_result) * 100)
+    dem_share <- signif(colMeans(sim_result) + 50, digits=3)
+    dem_share[dem_share > 100] = 100
+    conceded <- cd2018data %>% 
+      filter(concede == 1 | concede == -1) %>% 
+      mutate(dem_share = NA, dem_win_pct = ifelse(concede==1,100,0)) %>% 
+      select(district, dem_share, dem_win_pct)
+    district <- c(open18$district, inc18$district, conceded$district)
+    dem_share <- c(dem_share, conceded$dem_share)
+    dem_win_pct <- c(dem_win_pct, conceded$dem_win_pct)
+    data.frame(district, dem_share, dem_win_pct)[order(district),]
   })
   
   output$npdi_plot <- renderPlot({
@@ -325,22 +330,10 @@ server <- function(input, output, session) {
     paste("Estimated number of Democratic seats:", 
           median(dseats()))
   })
-  output$district_info <- renderDataTable({
-    sim_result <- sim()
-    dem_win_pct <- round(colSums(sim_result > 0)/nrow(sim_result) * 100)
-    dem_share <- signif(colMeans(sim_result) + 50, digits=3)
-    dem_share[dem_share > 100] = 100
-    conceded <- cd2018data %>% 
-      filter(concede == 1 | concede == -1) %>% 
-      mutate(dem_share = NA, dem_win_pct = ifelse(concede==1,100,0)) %>% 
-      select(district, dem_share, dem_win_pct)
-    district <- c(inc18$district, open18$district, conceded$district)
-    dem_share <- c(dem_share, conceded$dem_share)
-    dem_win_pct <- c(dem_win_pct, conceded$dem_win_pct)
-    forecast <- data.frame(district, dem_share, dem_win_pct)
-    forecast <- forecast[order(district),]
-    rownames(forecast) <- c()
-    forecast
+  output$district_info <- renderDataTable({npdi_data()}, options = list(dom = 'ftpr'))
+  
+  output$tossups <- renderDataTable({
+    filter(npdi_data(), dem_win_pct > 40, dem_win_pct < 60)
   }, options = list(dom = 'ftpr'))
 }
 
