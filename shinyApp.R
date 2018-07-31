@@ -22,7 +22,7 @@ gb_desc <- "This is a structural model which makes use of national conditions, o
 sit_desc <- "This is an expert model which makes use of seat ratings by Cook Political. Individual seats are rated as Solid, Likely, or Lean for either party, or as Tossups. This model makes its prediction based on how many seats for each party are 'in trouble,' or rated by experts as being a likely flip."
 
 header <- dashboardHeader(
-  title = "2018 House",
+  title = "2018 Midterms",
   tags$li(class = "dropdown", circleButton("info", icon("info"), size="sm", status="info"))
 )
 
@@ -47,7 +47,10 @@ body <- dashboardBody(useShinyalert(), fluidRow(
                    box(width=NULL,
                        tabsetPanel(
                          tabPanel("House", plotOutput("gbhouse")),
-                         tabPanel("Senate", plotOutput("gbsenate"))
+                         tabPanel("Senate", 
+                                  plotOutput("gbsenate"), 
+                                  textOutput("gb_sen_win_pct"),
+                                  textOutput("gb_sen_est"))
                        ))),
             column(6, align="left",
                    box(width=NULL, status="danger", 
@@ -56,7 +59,10 @@ body <- dashboardBody(useShinyalert(), fluidRow(
                    box(width=NULL,
                        tabsetPanel(
                          tabPanel("House", plotOutput("sithouse")),
-                         tabPanel("Senate", plotOutput("sitsenate"))
+                         tabPanel("Senate", 
+                                  plotOutput("sitsenate"),
+                                  textOutput("sit_sen_win_pct"),
+                                  textOutput("sit_sen_est"))
                        ))),
             column(width=8, offset=2, align="center", box(width=NULL, status="primary", note))
     ),
@@ -183,6 +189,60 @@ server <- function(input, output, session) {
     shinyalert("2018 House Forecasting Models", 
                info_text, html = TRUE, type = "info")
   })
+  
+  gbmean <- -2.02
+  gbsd <- 2.71
+  output$gbsenate <- renderPlot({
+    lower.bound <- 23
+    upper.bound <- 58
+    dist_df <- data.frame(dseats=c(lower.bound:upper.bound)) %>%
+      mutate(prob = 10000 * (pnorm(dseats-48.5,mean=gbmean,sd=gbsd) - 
+                               pnorm(dseats-49.5,mean=gbmean,sd=gbsd)))
+    forecast_df <- data.frame(dseats=rep(dist_df$dseats, dist_df$prob))
+    ggplot(aes(x=dseats, fill=(dseats > 50)), data=forecast_df) + 
+      geom_histogram(binwidth=1, aes(y=..count../sum(..count..))) + xlab("Democratic seats in senate") + 
+      ylab("Probability") + scale_x_continuous(limits=c(lower.bound,upper.bound)) + 
+      scale_fill_discrete(name=element_blank(),
+                          breaks=c("FALSE", "TRUE"),
+                          labels=c("Republican Senate", "Democratic Senate"))
+  })
+  output$gb_sen_win_pct <- renderText({
+    paste("Probability of Democrats taking senate:", 
+          round(100 * (1 - pnorm(1.5,mean=gbmean,sd=gbsd))),
+          "%")
+  })
+  output$gb_sen_est <- renderText({
+    paste("Estimated number of Democratic seats:", 
+          49 + round(gbmean))
+  })
+  
+  sitmean <- -4.495
+  sitsd <- 3.54
+  output$sitsenate <- renderPlot({
+    lower.bound <- 23
+    upper.bound <- 58
+    dist_df <- data.frame(dseats=c(lower.bound:upper.bound)) %>%
+      mutate(prob = 10000 * (pnorm(dseats-48.5,mean=sitmean,sd=sitsd) - 
+                               pnorm(dseats-49.5,mean=sitmean,sd=sitsd)))
+    forecast_df <- data.frame(dseats=rep(dist_df$dseats, dist_df$prob))
+    ggplot(aes(x=dseats, fill=(dseats > 50)), data=forecast_df) + 
+      geom_histogram(binwidth=1, aes(y=..count../sum(..count..))) + xlab("Democratic seats in senate") + 
+      ylab("Probability") + scale_x_continuous(limits=c(lower.bound,upper.bound)) + 
+      scale_fill_discrete(name=element_blank(),
+                          breaks=c("FALSE", "TRUE"),
+                          labels=c("Republican Senate", "Democratic Senate"))
+  })
+  output$sit_sen_win_pct <- renderText({
+    paste("Probability of Democrats taking senate:", 
+          round(100 * (1 - pnorm(1.5,mean=sitmean,sd=sitsd))),
+          "%")
+  })
+  output$sit_sen_est <- renderText({
+    paste("Estimated number of Democratic seats:", 
+          49 + round(sitmean))
+  })
+  
+  
   ###Structure-X
   
   # sx info buttons and link
