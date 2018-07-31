@@ -46,7 +46,10 @@ body <- dashboardBody(useShinyalert(), fluidRow(
                        gb_desc),
                    box(width=NULL,
                        tabsetPanel(
-                         tabPanel("House", plotOutput("gbhouse")),
+                         tabPanel("House", 
+                                  plotOutput("gbhouse"),
+                                  textOutput("gb_win_pct"),
+                                  textOutput("gb_est")),
                          tabPanel("Senate", 
                                   plotOutput("gbsenate"), 
                                   textOutput("gb_sen_win_pct"),
@@ -58,7 +61,10 @@ body <- dashboardBody(useShinyalert(), fluidRow(
                        sit_desc),
                    box(width=NULL,
                        tabsetPanel(
-                         tabPanel("House", plotOutput("sithouse")),
+                         tabPanel("House", 
+                                  plotOutput("sithouse"),
+                                  textOutput("sit_win_pct"),
+                                  textOutput("sit_est")),
                          tabPanel("Senate", 
                                   plotOutput("sitsenate"),
                                   textOutput("sit_sen_win_pct"),
@@ -190,14 +196,40 @@ server <- function(input, output, session) {
                info_text, html = TRUE, type = "info")
   })
   
-  gbmean <- -2.02
-  gbsd <- 2.71
+  gbmean <- 33.2
+  gbsd <- 17
+  output$gbhouse <- renderPlot({
+    lower.bound <- 150
+    upper.bound <- 285
+    dist_df <- data.frame(dseats=c(lower.bound:upper.bound)) %>%
+      mutate(prob = 10000 * (pnorm(dseats-193.5,mean=gbmean,sd=gbsd) - 
+                               pnorm(dseats-194.5,mean=gbmean,sd=gbsd)))
+    forecast_df <- data.frame(dseats=rep(dist_df$dseats, dist_df$prob))
+    ggplot(aes(x=dseats, fill=(dseats > 217)), data=forecast_df) + 
+      geom_histogram(binwidth=1, aes(y=..count../sum(..count..))) + xlab("Democratic seats in House") + 
+      ylab("Probability") + scale_x_continuous(limits=c(lower.bound,upper.bound)) + 
+      scale_fill_discrete(name=element_blank(),
+                          breaks=c("FALSE", "TRUE"),
+                          labels=c("Republican House", "Democratic House"))
+  })
+  output$gb_win_pct <- renderText({
+    paste("Probability of Democrats taking house:", 
+          round(100 * (1 - pnorm(23.5,mean=gbmean,sd=gbsd))),
+          "%")
+  })
+  output$gb_est <- renderText({
+    paste("Estimated number of Democratic seats:", 
+          194 + round(gbmean))
+  })
+  
+  gbmeansen <- -2.02
+  gbsdsen <- 2.71
   output$gbsenate <- renderPlot({
     lower.bound <- 23
     upper.bound <- 58
     dist_df <- data.frame(dseats=c(lower.bound:upper.bound)) %>%
-      mutate(prob = 10000 * (pnorm(dseats-48.5,mean=gbmean,sd=gbsd) - 
-                               pnorm(dseats-49.5,mean=gbmean,sd=gbsd)))
+      mutate(prob = 10000 * (pnorm(dseats-48.5,mean=gbmeansen,sd=gbsdsen) - 
+                               pnorm(dseats-49.5,mean=gbmeansen,sd=gbsdsen)))
     forecast_df <- data.frame(dseats=rep(dist_df$dseats, dist_df$prob))
     ggplot(aes(x=dseats, fill=(dseats > 50)), data=forecast_df) + 
       geom_histogram(binwidth=1, aes(y=..count../sum(..count..))) + xlab("Democratic seats in senate") + 
@@ -208,22 +240,49 @@ server <- function(input, output, session) {
   })
   output$gb_sen_win_pct <- renderText({
     paste("Probability of Democrats taking senate:", 
-          round(100 * (1 - pnorm(1.5,mean=gbmean,sd=gbsd))),
+          round(100 * (1 - pnorm(1.5,mean=gbmeansen,sd=gbsdsen))),
           "%")
   })
   output$gb_sen_est <- renderText({
     paste("Estimated number of Democratic seats:", 
-          49 + round(gbmean))
+          49 + round(gbmeansen))
   })
   
-  sitmean <- -4.495
-  sitsd <- 3.54
+  
+  sitmean <- 68.8
+  sitsd <- 17
+  output$sithouse <- renderPlot({
+    lower.bound <- 150
+    upper.bound <- 285
+    dist_df <- data.frame(dseats=c(lower.bound:upper.bound)) %>%
+      mutate(prob = 10000 * (pnorm(dseats-193.5,mean=sitmean,sd=sitsd) - 
+                               pnorm(dseats-194.5,mean=sitmean,sd=sitsd)))
+    forecast_df <- data.frame(dseats=rep(dist_df$dseats, dist_df$prob))
+    ggplot(aes(x=dseats, fill=(dseats > 217)), data=forecast_df) + 
+      geom_histogram(binwidth=1, aes(y=..count../sum(..count..))) + xlab("Democratic seats in House") + 
+      ylab("Probability") + scale_x_continuous(limits=c(lower.bound,upper.bound)) + 
+      scale_fill_discrete(name=element_blank(),
+                          breaks=c("FALSE", "TRUE"),
+                          labels=c("Republican House", "Democratic House"))
+  })
+  output$sit_win_pct <- renderText({
+    paste("Probability of Democrats taking house:", 
+          round(100 * (1 - pnorm(23.5,mean=sitmean,sd=sitsd))),
+          "%")
+  })
+  output$sit_est <- renderText({
+    paste("Estimated number of Democratic seats:", 
+          194 + round(sitmean))
+  })
+  
+  sitmeansen <- -4.495
+  sitsdsen <- 3.54
   output$sitsenate <- renderPlot({
     lower.bound <- 23
     upper.bound <- 58
     dist_df <- data.frame(dseats=c(lower.bound:upper.bound)) %>%
-      mutate(prob = 10000 * (pnorm(dseats-48.5,mean=sitmean,sd=sitsd) - 
-                               pnorm(dseats-49.5,mean=sitmean,sd=sitsd)))
+      mutate(prob = 10000 * (pnorm(dseats-48.5,mean=sitmeansen,sd=sitsdsen) - 
+                               pnorm(dseats-49.5,mean=sitmeansen,sd=sitsdsen)))
     forecast_df <- data.frame(dseats=rep(dist_df$dseats, dist_df$prob))
     ggplot(aes(x=dseats, fill=(dseats > 50)), data=forecast_df) + 
       geom_histogram(binwidth=1, aes(y=..count../sum(..count..))) + xlab("Democratic seats in senate") + 
@@ -234,12 +293,12 @@ server <- function(input, output, session) {
   })
   output$sit_sen_win_pct <- renderText({
     paste("Probability of Democrats taking senate:", 
-          round(100 * (1 - pnorm(1.5,mean=sitmean,sd=sitsd))),
+          round(100 * (1 - pnorm(1.5,mean=sitmeansen,sd=sitsdsen))),
           "%")
   })
   output$sit_sen_est <- renderText({
     paste("Estimated number of Democratic seats:", 
-          49 + round(sitmean))
+          49 + round(sitmeansen))
   })
   
   
