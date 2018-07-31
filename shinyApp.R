@@ -2,13 +2,12 @@ library(shiny)
 library(shinydashboard)
 library(shinyalert)
 library(shinyWidgets)
-library(dplyr)
-library(readr)
-library(ggplot2)
+library(tidyverse)
 
-# add other models
 # allow for analysis of past years
 
+note <- "Note: both models above require information that isn't known until early September. These models might change over the next month."
+compare_desc <- "Some forecasters, called structuralists, use historic voting trends based on the economy and national polls (such as presidential approval and generic ballot polling). This camp gives Democrats barely better than a coin flip's chance to retake the House. But special election results, district-by-district polls and expert race-by-race ratings predict a landslide. The difference is big. In 2006 and 2010, experts anticipated the waves much better than structuralists. But in 2014 and 2016, experts were much further off. Who do you trust? \n To play around with more complicated models, use the menu bar on the left."
 s_only_text <- "Half of the prediction comes from Rothenberg's rating of races as e.g. Safe-D or Tossup or Lean-R. These have historically been very accurate, but did not do well in 2016. If you do not trust pundits, check this box."
 desc_text <- "The Structure-X model predicts the house elections using Presidential approval ratings, real disposible income growth, and who holds the Presidency. If the economy is doing well, or if the President is popular, we expect the incumbent party to do better. These predictions are combined with expert opinion seat ratings (aka which seats are leaning or safe in each direction). What if you don't trust the experts? What if you think Presidential disapproval is a better predictor than Presidential approval? How would the election look different if Trump was more popular? Play around!"
 shift_pred_text <- "For the past 6 elections (as long as Rothenberg has been rating races) this model has predicted outcomes more favorable to the Presidential party every election, on average by about 6 seats. With so few data points we don't have statistical significance, (p=0.06) and it's dangerous to overfit the data, so you should only check this if you think there's a systematic reason this model might overestimate incumbent performance."
@@ -19,6 +18,9 @@ open_adv_info_dec <- "This model assumes seats with incumbents running for relec
 open_stdev_desc <- "We know that our predictions aren't perfect, but we want to know by how much. Based on past elections, we expect the real results in seats without incumbents to be centered around our prediction with a standard deviation of 6.1. However, we have very few data points, so if you very much trust (or don't trust) this model, change this value."
 inc_stdev_desc <- "We know that our predictions aren't perfect, but we want to know by how much. Based on past elections, we expect the real results in seats with incumbents running to be centered around our prediction with a standard deviation of 4.5. However, we have very few data points, so if you very much trust (or don't trust) this model, change this value."
 nat_stdev_desc <- "We know that our predictions aren't perfect, but we want to know by how much. Based on past elections, we expect the true percentage of the national house votes that goes to the Democrats to be centered around our prediction with a standard deviation of 1.8. This relies on regression from elections since 1950, so if you believe this election to be atypical and hard to predict from precedent, increase this value. If you think this election will follow historic trends, decrease it."
+gb_desc <- "This is a structural model which makes use of national conditions, or 'fundamentals.' This model makes its prediction based on Generic ballot polls, who controls the Presidency, and how many seats each party currently has. Generic ballot polls are national polls that ask respondents if they want the Democrat or Republican to win in their district."
+sit_desc <- "This is an expert model which makes use of seat ratings by Cook Political. Individual seats are rated as Solid, Likely, or Lean for either party, or as Tossups. This model makes its prediction based on how many seats for each party are 'in trouble,' or rated by experts as being a likely flip."
+
 header <- dashboardHeader(
   title = "2018 House",
   tags$li(class = "dropdown", circleButton("info", icon("info"), size="sm", status="info"))
@@ -26,6 +28,7 @@ header <- dashboardHeader(
 
 sidebar <- dashboardSidebar(
   sidebarMenu(
+    menuItem("Seats-In-Trouble and Generic Ballot", tabName = "compare"),
     menuItem("National Polls and District Info", tabName = "bafumi"),
     menuItem("Structure-X", tabName = "sx")
   )
@@ -33,10 +36,34 @@ sidebar <- dashboardSidebar(
 
 body <- dashboardBody(useShinyalert(), fluidRow(
   tabItems(
+    tabItem(tabName="compare",
+            box(width=12, align="left", status="primary", collapsible=TRUE, 
+                tags$h2("Building a forecast: who do you trust?"),
+                compare_desc),
+            column(6, align="left",
+                   box(width=NULL, status="warning", 
+                       tags$h4("Generic Ballot Model"),
+                       gb_desc),
+                   box(width=NULL,
+                       tabsetPanel(
+                         tabPanel("House", plotOutput("gbhouse")),
+                         tabPanel("Senate", plotOutput("gbsenate"))
+                       ))),
+            column(6, align="left",
+                   box(width=NULL, status="danger", 
+                       tags$h4("Seats-In-Trouble Model"),
+                       sit_desc),
+                   box(width=NULL,
+                       tabsetPanel(
+                         tabPanel("House", plotOutput("sithouse")),
+                         tabPanel("Senate", plotOutput("sitsenate"))
+                       ))),
+            column(width=8, offset=2, align="center", box(width=NULL, status="primary", note))
+    ),
     # Bafumi, Erikson Wlezien ----
     tabItem(tabName="bafumi",
             column(8, align="center",
-                   box(width = NULL, align="left", status="primary", npdi_desc_text),
+                   box(width = NULL, align="left", status="primary", collapsible=TRUE, npdi_desc_text),
                    box(width = NULL, 
                        tabsetPanel(
                          tabPanel("Histogram of House Seats", plotOutput("npdi_plot")),
@@ -81,7 +108,7 @@ body <- dashboardBody(useShinyalert(), fluidRow(
     # Structure-X ----
     tabItem(tabName="sx",
     column(8, align="center",
-      box(width = NULL, align="left", status="primary", desc_text),
+      box(width = NULL, align="left", status="primary", collapsible=TRUE, desc_text),
       box(width = NULL, plotOutput("plot")),
       box(width = NULL, 
           h4(textOutput("interval")),
