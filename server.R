@@ -5,6 +5,14 @@ library(dplyr)
 library(tidyr)
 library(readr)
 
+info_text <- "Brought to you by Harry Bendekgey.\n For more information on these models, check out <a href=\"https://github.com/hbendekgey/house_forecast_2018\">my Github</a>"
+open_stdev_desc <- "This model's predictions aren't perfect, but by how much? Based on past elections, the model expects the real results in seats without incumbents to be centered around its prediction with a standard deviation of 6.1. However, it comes to this conclusion based on few data points, so if you very much trust (or don't trust) this model, change this value."
+inc_stdev_desc <- "This model's predictions aren't perfect, but by how much? Based on past elections, the model expects the real results in seats with incumbents running to be centered around its prediction with a standard deviation of 4.5. However, it comes to this conclusion based on few data points, so if you very much trust (or don't trust) this model, change this value."
+nat_stdev_desc <- "This model's predictions aren't perfect, but by how much? Based on past elections, the model expect the true percentage of the national house votes that goes to the Democrats to be centered around our prediction (53.2%) with a standard deviation of 1.8. This relies on regression from elections since 1950, so if you believe this election to be atypical and hard to predict from precedent, increase this value. If you think this election will follow historic trends, decrease it."
+trump_info_desc <- "To make predictions for seats where incumbents are runnning, this algorithm take a combination of its house vote and presidential vote in 2016. This slider represents the percentage of the prediction that comes from the presidential margin. Predicting the 2010 elections from 2008 suggest the value should be 42%, while predicting the 2014 elections from 2012 suggest it should be 12%. If you expect Republicans to do best in districts Trump did well in, increase this value. If you expect Republicans to do best in districts where incumbents did well in 2016, decrease this."
+open_adv_info_desc <- "This model assumes seats with incumbents running for relection and those without will swing (on average) by the same amount from 2016 to 2018. However, the large number of Republicans retiring (over double the number of Democrats) indicate that compared to their national margin, Democrats might overperform in open seats compared to how they performed in 2016 (and therefore underperform in incumbent seats). A simple calculation using incumbency advantage implies this advantage should be 1 percentage point (making the corresponding disadvantage 0.2 pct, because there are more incumbent seats than open ones). Play around and see how it changes predictions."
+s_only_text <- "Half of the prediction comes from Rothenberg's rating of races as e.g. Safe-D or Tossup or Lean-R. These have historically been very accurate, but did not do well in 2016. If you do not trust pundits, check this box."
+
 # data ----
 structure <- read_csv("data/structurex.csv") %>%
   mutate(pres_net = pres_app - pres_dis, pres_share = pres_app/(pres_app + pres_dis) * 100) %>%
@@ -152,11 +160,7 @@ function(input, output, session) {
     shinyalert("Use Only the Structural Model", 
                s_only_text, type = "info")
   })
-  observeEvent(input$shift_pred_info, {
-    shinyalert("Shift Prediction Towards Out-Party", 
-               shift_pred_text, type = "info")
-  })
-  
+
   # reset sliders and make sure they don't add to > 100
   observeEvent(input$reset, {
     updateSliderInput(session, "rdig", value=1.47)
@@ -201,13 +205,8 @@ function(input, output, session) {
       pred <- (fitted + roth)/2
       actual <- structurex$chiseats
       sxpred <- data.frame(pred, actual)
-      if (input$shift_pred) {
-        comb_fit <- lm(actual ~ offset(1 *pred), data=sxpred) %>% summary()
-        sxvals$mean <- (interval$fit[1] - 59)/2 + comb_fit$coefficients[1,1]
-      } else {
-        comb_fit <- lm(actual ~ 0 + offset(1 *pred), data=sxpred) %>% summary()
-        sxvals$mean <- (interval$fit[1] - 59)/2
-      }
+      comb_fit <- lm(actual ~ 0 + offset(1 *pred), data=sxpred) %>% summary()
+      sxvals$mean <- (interval$fit[1] - 59)/2
       sxvals$se <- comb_fit$sigma
       sxvals$df <- comb_fit$df[2]
       t.cutoff <- qt(0.95, df=sxvals$df)
@@ -265,11 +264,11 @@ function(input, output, session) {
   })
   observeEvent(input$trump_info, {
     shinyalert("Percent of Prediction Coming from Trump 2016 Margin", 
-               trump_info_text, type = "info")
+               trump_info_desc, type = "info")
   })
   observeEvent(input$open_adv_info, {
     shinyalert("Considering Republican Retirements", 
-               open_adv_info_dec, type = "info")
+               open_adv_info_desc, type = "info")
   })
   observeEvent(input$open_stdev_info, {
     shinyalert("Open Seat Standard Deviation", 
