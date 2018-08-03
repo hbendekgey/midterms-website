@@ -131,7 +131,7 @@ body <- dashboardBody(useShinyalert(), fluidRow(
                        
                        sliderInput(inputId = "rdig",
                                    label = "December '17-June '18 Real Disposible Income Growth",
-                                   value = 1.47, min = -1, max = 5, step=0.01),
+                                   value = 1.52, min = -1, max = 5, step=0.01),
                        sliderInput(inputId = "pres_app",
                                    label = "Trump June Approval:",
                                    value = 42, min = 30, max = 70),

@@ -163,7 +163,7 @@ function(input, output, session) {
 
   # reset sliders and make sure they don't add to > 100
   observeEvent(input$reset, {
-    updateSliderInput(session, "rdig", value=1.47)
+    updateSliderInput(session, "rdig", value=1.52)
     updateSliderInput(session, "pres_app", value=42)
     updateSliderInput(session, "pres_dis", value=52)
   })
