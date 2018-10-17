@@ -3,7 +3,6 @@ library(shinydashboard)
 library(shinyalert)
 library(shinyWidgets)
 
-note <- "Note: both models above require information that isn't known until early September. These models might change over the next month."
 compare_desc <- "Some forecasters, called structuralists, use historic voting trends based on the economy and national polls (such as presidential approval and generic ballot polling). This camp gives Democrats barely better than a coin flip's chance to retake the House. But special election results, district-by-district polls and expert race-by-race ratings predict a landslide. The difference is big. In 2006 and 2010, experts anticipated the wave elections (in favor of Democrats and Republicans, respectively) much better than structuralists. But in 2016, experts forecasted a wave for Democrats that never materialized. Who do you trust? \n To play around with more complicated models, use the menu bar on the left."
 desc_text <- "The Structure-X model predicts the house elections using presidential approval ratings, real disposible income growth, and who holds the presidency. If the economy is doing well, or if the President is popular, the model expects the incumbent party to do better. These predictions are combined with expert opinion seat ratings (aka which seats are leaning or safe in each direction). What if you don't trust the experts? What if you think presidential disapproval is a better predictor than presidential approval? How would the election look different if Trump was more popular? Play around!"
 npdi_desc_text <- "The National Poll District Info model predicts the national house popular vote based on generic ballot polls and who currently controls the presidency. From these structural conditions the model expects Democrats to win 53.2% of the votes for representatives across the country, an environment very friendly to Democrats. The model then predicts how each seat will behave based on how they behaved in 2016, shifted to reflect the change in national environtment. Finally, it runs thousands of simulations: first picking a value for the national vote, then picking an outcome for each district based on that. Play around with some of the parameters and see how it affects the model!"
@@ -58,8 +57,7 @@ body <- dashboardBody(useShinyalert(), fluidRow(
                                   plotOutput("sitsenate"),
                                   textOutput("sit_sen_win_pct"),
                                   textOutput("sit_sen_est"))
-                       ))),
-            column(width=8, offset=2, align="center", box(width=NULL, status="primary", note))
+                       )))
     ),
     # Bafumi, Erikson Wlezien ----
     tabItem(tabName="bafumi",
